@@ -1,0 +1,204 @@
+﻿
+@{
+	ViewBag.Title = "Home Page";
+	Layout = null;
+}
+
+	<head>
+		<script src="https://code.jquery.com/jquery-3.4.1.js"></script>
+		<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css">
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
+		<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"></script>
+		<script>
+			var blocked = [];
+			var target = '';
+            var blob = [];
+            var locked = false;
+            function reset() {
+				blocked = [];
+			    target = '';
+                blob = [];
+            }
+            function pathingCheck() {
+                var msg = {
+                    error: false,
+					txt: ""
+                };
+                if (target === '' || typeof target === "undefined") {
+                    msg.error = true;
+                    msg.txt = "You must specify a target";
+                    return msg;
+                }
+                else if (blob.length <= 0 || typeof blob === "undefined") {
+                    msg.error = true;
+                    msg.txt = "You must have at least 1 start area defined (blob)";
+                    return msg;
+                }
+                else {
+                    return msg;
+                }
+            }
+            function convert(arr) {
+                var arr2;
+                var pts = [];
+                for (s of arr) {
+                    arr2 = s.split("`");
+                    pts.push({
+                        x: parseInt(arr2[0]),
+                        y: parseInt(arr2[1])
+                    });
+                }
+                return pts;
+            }
+            function deconvert(jObj) {
+                arr = [];
+                for (j of jObj) {
+					arr.push( j.x + '`' + j.y)
+                }
+                return arr;
+            }
+            function prepareJSON() {
+                var hold = [target];
+                return {
+                    blocked: convert(blocked),
+                    blob: convert(blob),
+                    target: convert(hold)[0]
+                };
+            }
+			$(document).ready(function () {
+				$(".col").hover(function () {
+					$(this).removeClass("border-dark");
+					$(this).addClass("border-primary");
+				}, function () {
+					$(this).removeClass("border-primary");
+					$(this).addClass("border-dark");
+				});
+				$(".col").dblclick(function () {
+					if ($(this).hasClass("bg-secondary"))
+						$(this).removeClass("bg-secondary");
+					if ($(this).hasClass("bg-danger"))
+						$(this).removeClass("bg-danger");
+					if ($(this).hasClass("bg-info"))
+						$(this).removeClass("bg-info");
+					$('.bg-success').each(function () {
+						$(this).removeClass("bg-success");
+						$(this).addClass("bg-secondary");
+					});
+					$(this).addClass("bg-success");
+				});
+				$(".col").click(function () {
+					if ($(this).hasClass("bg-secondary")) {
+						$(this).removeClass("bg-secondary");
+						$(this).addClass("bg-danger");
+					}
+					else if ($(this).hasClass("bg-success")) {
+						$(this).removeClass("bg-success");
+						$(this).addClass("bg-secondary");
+					}
+					else if ($(this).hasClass("bg-danger")) {
+						$(this).removeClass("bg-danger");
+						$(this).addClass("bg-info");
+					}
+					else {
+						$(this).removeClass("bg-info");
+						$(this).addClass("bg-secondary");
+					}
+				});
+                $('#unlock').click(function () {
+                    reset();
+                    locked = false;
+					$('.col').each(function () {
+						if ($(this).hasClass("bg-danger")) {
+							$(this).removeClass("bg-danger");
+							$(this).addClass("bg-secondary");
+						}
+						else if ($(this).hasClass("bg-success")) {
+							$(this).removeClass("bg-success");
+							$(this).addClass("bg-secondary");
+						}
+						else if ($(this).hasClass("bg-warning")) {
+							$(this).removeClass("bg-warning");
+							$(this).addClass("bg-secondary");
+						}
+						else if ($(this).hasClass("bg-info")){
+							$(this).removeClass("bg-info");
+							$(this).addClass("bg-secondary");
+						}
+                    });
+                });
+                $('#pathfind').click(function () {
+                    if(!locked){
+                    reset();
+                    target = $('.bg-success').first().attr('id');
+                    $('.bg-info').each(function () {
+                        blob.push($(this).attr('id'));
+                    });
+                    $('.bg-danger').each(function () {
+                        blocked.push($(this).attr('id'));
+                    });
+                    var check = pathingCheck();
+                    if (check.error) {
+                        window.alert(check.txt);
+                    }
+                    else {
+                        var out = prepareJSON();
+                        alert("Sending out target as " + out.target.x + ", " + out.target.y);
+                        $.ajax({
+                            type: 'POST',
+                            url: '/Home/FindPath',
+                            data: JSON.stringify(out),
+                            contentType: 'application/json; charset=utf-8',
+                            dataType: 'json',
+                            success: function (response) {
+                                locked = true;
+                                if (response != null) {
+                                    for (p of response.path) {
+                                        $(document.getElementById(p.x + '`' + p.y)).removeClass('bg-secondary');
+                                        $(document.getElementById(p.x + '`' + p.y)).addClass('bg-warning');
+                                    }
+                                }
+                                else {
+                                    alert('Empty Response! Check your code, dummy!');
+                                }
+                            },
+                            failure: function (response) {
+                                alert("Thats a fail: " + response.responseText);
+                            },
+                            error: function (response) {
+                                alert('We got an error: ' + response.responseText);
+                            }
+                        });
+                    }
+                }
+                });
+			});
+		</script>
+		<style>
+			.border {
+				display: inline-block;
+				width: auto;
+				height: 100px;
+			}
+		</style>
+	</head>
+	<body>
+		<h3><p>A* Pathfinder With Many Possible Starting Points</p></h3>
+		<p>One click to toggle between <span class="text-danger">blocked off space,</span> <span class="text-secondary">empty space,</span> and <span class="text-info">possible starting points.</span>
+		<p>Double click to set a <span class="text-success">target space.</span></p><br />
+		<div class="container-fluid">
+			@{for (var i = 0; i < Model.Nodes.GetLength(0); i++)
+				{
+					<div class="row">
+						@for (var j = 0; j < Model.Nodes.GetLength(1); j++)
+						{
+							<span class="border border-dark col h-10 bg-secondary" id="@i`@j"></span>
+					
+                        }
+					</div>
+				}
+			}
+		</div>
+		<br>
+		<button id='pathfind' type="button" class="btn btn-success">Find Path</button>
+		<button id='unlock' type="button" class="btn btn-success">Unlock & Reset</button>
+	</body>
